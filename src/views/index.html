@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload de Arquivo</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <div id="uploadSection">
+      <h1>Envio de Arquivo</h1>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <label for="file">Escolha um arquivo:</label>
+        <input type="file" name="file" id="file" accept=".csv, .xlsx, .xml, .txt">
+        <button type="submit">Enviar</button>
+      </form>
+    </div>
+
+    <!-- Tela de carregamento com barra de carregamento -->
+    <div id="loadingScreen" class="loading-screen" style="display: none;">
+      <h2>Carregando dados para análise...</h2>
+      <div class="loading-bar">
+        <span class="icon spreadsheet-icon">📊</span>
+        <div class="progress" id="loadingProgress">
+          <div class="progress-fill" id="progressFill"></div>
+          <div class="percentage" id="percentage">0%</div>
+        </div>
+        <span class="icon robot-icon">🤖</span>
+      </div>
+    </div>
+
+    <div id="analysisResult" class="analysis-result" style="display: none;">
+      <h2>Análise do Arquivo:</h2>
+      <div class="analysis-content">
+        <!-- Caixa para Informações do Arquivo -->
+        <div id="fileInfo" class="info-balloon">
+          <span class="info-icon">📁</span>
+          <div id="fileData"></div>
+        </div>
+
+        <!-- Caixa para Colunas Identificadas -->
+        <div id="columnsInfo" class="info-balloon">
+          <span class="info-icon">📊</span>
+          <div id="columnsData"></div>
+        </div>
+
+        <!-- Caixa para Análise do Gemini -->
+        <div id="geminiResponse" class="gemini-balloon">
+          <span class="info-icon">🤖</span>
+          <div id="geminiData"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("uploadForm").addEventListener("submit", function(event) {
+      event.preventDefault();
+      
+      // Mostrar a tela de carregamento
+      document.getElementById('uploadSection').style.display = 'none';
+      document.getElementById('loadingScreen').style.display = 'block';
+
+      let formData = new FormData();
+      let fileInput = document.getElementById("file");
+      formData.append("file", fileInput.files[0]);
+
+      // Simulate progress for demonstration
+      let progress = 0;
+      const interval = setInterval(() => {
+        if (progress >= 100) {
+          clearInterval(interval);
+          fetch('http://localhost:3001/upload', {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => response.json())
+          .then(data => {
+            console.log('Sucesso:', data);
+
+            // Esconder a tela de carregamento
+            document.getElementById('loadingScreen').style.display = 'none';
+
+            // Mostrar a análise
+            const analysisDiv = document.getElementById('analysisResult');
+            const fileInfoDiv = document.getElementById('fileInfo');
+            const columnsInfoDiv = document.getElementById('columnsInfo');
+            const geminiResponseDiv = document.getElementById('geminiResponse');
+
+            // Mostrar informações do arquivo
+            fileInfoDiv.querySelector('#fileData').innerHTML = `
+              <h3>Informações do Arquivo:</h3>
+              <p><strong>Nome:</strong> ${data.metadados.nomeArquivo}</p>
+              <p><strong>Formato:</strong> ${data.metadados.formatoArquivo}</p>
+            `;
+
+            // Mostrar informações das colunas
+            columnsInfoDiv.querySelector('#columnsData').innerHTML = `
+              <h3>Colunas Identificadas:</h3>
+              ${data.metadados.colunas.map(col => `
+                <div class="column-item">
+                  <div class="column-header">
+                    <span class="column-name">${col.nomeColuna}</span>
+                    <span class="column-type">${col.tipoDado}</span>
+                  </div>
+                  ${col.valores && col.valores.length > 0 ? `
+                    <div class="column-values">
+                      <strong>Primeiros valores:</strong>
+                      <ul>
+                        ${col.valores.slice(0, 3).map(valor => `
+                          <li>${valor}</li>
+                        `).join('')}
+                      </ul>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            `;
+
+            // Mostrar resposta do Gemini
+            geminiResponseDiv.querySelector('#geminiData').innerHTML = `
+              <h3>Análise do Gemini:</h3>
+              <p>${data.analise.replace(/\n/g, '<br>')}</p>
+            `;
+
+            analysisDiv.style.display = 'block';
+          })
+          .catch((error) => {
+            console.error('Erro:', error);
+            document.getElementById('loadingScreen').style.display = 'none';
+          });
+        } else {
+          progress += 10;
+          updateProgress(progress);
+        }
+      }, 500);
+    });
+
+    function updateProgress(progress) {
+      const progressFill = document.getElementById('progressFill');
+      const percentage = document.getElementById('percentage');
+      progressFill.style.width = `${progress}%`;
+      percentage.textContent = `${progress}%`;
+    }
+  </script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0d0d0d;
+      color: #e5e5e5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .container {
+      max-width: 900px;
+      width: 100%;
+      background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .container:hover {
+      transform: scale(1.02);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+    }
+
+      h1 {
+      font-size: 3rem;
+      color: white;
+      background-color: #58a6ff;
+      padding: 12px;
+      margin-bottom: 30px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      transition: color 0.3s ease;
+      border-radius: 8px;
+      display: inline-block;
+    }
+
+    h1:hover {
+      color: #5d5d5d;
+    }
+
+    h2, h3 {
+      color: #e5e5e5;
+      font-weight: 500;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-size: 1.2rem;
+      color: #a5a5a5;
+      margin-bottom: 15px;
+      font-weight: 500;
+    }
+
+    input[type="file"] {
+      padding: 14px;
+      font-size: 1.1rem;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      background-color: #333;
+      color: #fff;
+      transition: all 0.3s ease;
+      width: 70%;
+      cursor: pointer;
+      outline: none;
+    }
+
+    input[type="file"]:hover, input[type="file"]:focus {
+      background-color: #444;
+      box-shadow: 0 0 10px rgba(90, 130, 255, 0.5);
+    }
+
+    button {
+      background-color: #58a6ff;
+      color: white;
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #1c7cf2;
+      transform: translateY(-3px);
+    }
+
+    .loading-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+
+    .pie-chart {
+      position: relative;
+      align-items: center;
+      justify-content: center;
+      width: 150px;
+      height: 50px;
+      margin-top: 20px;
+    }
+
+    .pie-chart svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .pie-chart circle {
+      fill: none;
+      stroke-width: 32;
+    }
+
+    .pie-chart circle:first-child {
+      stroke: #333;
+    }
+
+    .pie-chart circle:last-child {
+      stroke: #58a6ff;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.3s;
+    }
+
+    .percentage {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.2rem;
+      color: #e5e5e5;
+      font-weight: bold;
+      z-index: 1;
+    }
+
+    .analysis-result {
+      margin-top: 30px;
+      text-align: left;
+      display: none;
+      font-size: 1.1rem;
+    }
+
+    .analysis-content {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .info-balloon, .gemini-balloon {
+      margin: 15px 0;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      position: relative;
+      background-color: #222;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      overflow: auto;
+      max-height: 250px;
+      width: 90%;
+      max-width: 800px;
+    }
+
+    .info-balloon:hover, .gemini-balloon:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .gemini-balloon {
+      background-color: #292b2f;
+      border: 1px solid #495057;
+    }
+
+    .column-item {
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      margin: 8px 0;
+      background-color: #333;
+      border-radius: 8px;
+    }
+
+    .column-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .column-values {
+      font-size: 0.9rem;
+      padding-top: 8px;
+      border-top: 1px solid #565656;
+    }
+
+    .column-values ul {
+      list-style: none;
+      margin-top: 4px;
+      padding-left: 8px;
+    }
+
+    .column-values li {
+      color: #a5a5a5;
+      margin: 2px 0;
+    }
+
+    .column-name {
+      font-weight: bold;
+      color: #58a6ff;
+    }
+
+    .column-type {
+      color: #e5e5e5;
+      background-color: #565656;
+      padding: 5px 12px;
+      border-radius: 6px;
+    }
+
+    .info-icon {
+      font-size: 1.8rem;
+      margin-right: 12px;
+      transition: transform 0.3s ease;
+    }
+
+    .info-balloon:hover .info-icon, .gemini-balloon:hover .info-icon {
+      transform: rotate(15deg);
+    }
+
+    #geminiResponse {
+      white-space: pre-line;
+      line-height: 1.7;
+    }
+
+    h2 {
+      color: white;
+      background-color: #58a6ff;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-weight: 500;
+      letter-spacing: 1.2px;
+      transition: color 0.3s ease;
+      border-radius: 8px;
+      display: inline-block;
+    }
+
+    .loading-bar {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      margin-top: 20px;
+      position: relative;
+    }
+
+    .icon {
+      font-size: 1.5rem;
+      margin: 0 10px;
+    }
+
+    .spreadsheet-icon {
+      color: #58a6ff;
+    }
+
+    .robot-icon {
+      color: #58a6ff;
+    }
+
+    .progress {
+      flex-grow: 1;
+      background-color: #444;
+      border-radius: 8px;
+      height: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: #58a6ff;
+      width: 0;
+      transition: width 0.5s ease;
+      position: relative;
+      animation: wave 1.5s infinite;
+    }
+
+    .percentage {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.2rem;
+      color: #e5e5e5;
+      font-weight: bold;
+      z-index: 1;
+    }
+
+    @keyframes wave {
+      0% {
+        transform: translateX(0);
+      }
+      50% {
+        transform: translateX(-10px);
+      }
+      100% {
+        transform: translateX(0);
+      }
+    }
+  </style>
+</body>
+</html>
